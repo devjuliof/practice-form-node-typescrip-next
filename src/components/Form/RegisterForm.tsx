@@ -9,10 +9,9 @@ interface ComparePassword {
     confirmPassword: string;
 }
 
-type ErrorsMessages = 'Passwords not matches' | 'Invalid Email'
-
 interface Errors {
-    errors: ErrorsMessages[];
+    emailInput: string[],
+    passwordInput: string[],
 }
 
 export default function LoginForm() {
@@ -26,35 +25,44 @@ export default function LoginForm() {
         confirmPassword: ""
     });
 
-    const [passwordsIsEqual, setPasswordsIsEqual] = React.useState<boolean>(false);
-
     const [err, setErr] = React.useState<Errors>({
-        errors: []
+        emailInput: [],
+        passwordInput: []
     });
+
+    const [showError, setShowError] = React.useState<boolean>(false)
 
     React.useEffect(() => {
         setErr((prev) => {
-            const newErrors = [...prev.errors];
+            const newErrors: Errors = {...prev};
 
             if (/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(userCredentialsData.email)) {
-                const index = newErrors.indexOf('Invalid Email');
-                if (index !== -1) newErrors.splice(index, 1);
+                const index = newErrors.emailInput.indexOf('Invalid Email');
+                if (index !== -1) newErrors.emailInput.splice(index, 1);
             } else {
-                if (!newErrors.includes('Invalid Email')) {
-                    newErrors.push('Invalid Email');
+                if (!newErrors.emailInput.includes('Invalid Email')) {
+                    newErrors.emailInput.push('Invalid Email');
                 }
             }
 
             if (
-                comparePassword.password === comparePassword.confirmPassword &&
-                comparePassword.password.length >= 6
+                comparePassword.password === comparePassword.confirmPassword
             ) {
-                const index = newErrors.indexOf('Passwords not matches');
-                if (index !== -1) newErrors.splice(index, 1);
+                const index = newErrors.passwordInput.indexOf('Passwords not matches');
+                if (index !== -1) newErrors.passwordInput.splice(index, 1);
             } else {
-                if (!newErrors.includes('Passwords not matches')) {
-                    newErrors.push('Passwords not matches');
+                if (!newErrors.passwordInput.includes('Passwords not matches')) {
+                    newErrors.passwordInput.push('Passwords not matches');
                 }
+            }
+
+            if (comparePassword.password.length < 6 || comparePassword.confirmPassword.length < 6) {
+                if (!newErrors.passwordInput.includes('Password should be more than 6')) {
+                    newErrors.passwordInput.push('Password should be more than 6');
+                }
+            } else {
+                const index = newErrors.passwordInput.indexOf('Password should be more than 6');
+                if (index !== -1) newErrors.passwordInput.splice(index, 1);
             }
 
             return { ...prev, errors: newErrors };
@@ -62,18 +70,33 @@ export default function LoginForm() {
     }, [comparePassword, userCredentialsData]);
 
     React.useEffect(() => {
-        if (userCredentialsData.email && comparePassword.password.length >= 6 && comparePassword.confirmPassword.length >= 6 && comparePassword.password === comparePassword.confirmPassword) {
-            setPasswordsIsEqual(true);
+        if (comparePassword.password.length >= 6 &&
+            comparePassword.confirmPassword.length >= 6 &&
+            comparePassword.password === comparePassword.confirmPassword)
+        {
+            setUserCredentialsData((prev) => ({
+                ...prev,
+                password: comparePassword.password
+            }))
         } else {
-            setPasswordsIsEqual(false);
+            setUserCredentialsData((prev) => ({
+                ...prev,
+                password: ''
+            }))
         }
-    }, [comparePassword, userCredentialsData])
+    }, [comparePassword.confirmPassword, comparePassword.password])
 
     const handleSubmit = async (e: React.FormEvent<HTMLFormElement>) => {
         e.preventDefault()
-        console.log(userCredentialsData) // Não está enviando o password
-        const response = await fetchRegisterUser(userCredentialsData)
-        console.log(response)
+        if (err.passwordInput || err.emailInput) {
+            setShowError(true)
+        }
+        const errors: boolean = err.emailInput.length !== 0 || err.passwordInput.length !== 0;
+        if (!errors) {
+            console.log(userCredentialsData)
+            const response = await fetchRegisterUser(userCredentialsData)
+            console.log(response)
+        }
     }
 
     function handleChangeEmail(e: React.ChangeEvent<HTMLInputElement>) {
@@ -97,19 +120,19 @@ export default function LoginForm() {
             <label htmlFor={'email'}>Email:</label>
             <input onChange={handleChangeEmail} id={'email'} name={'email'} type={'email'}
                    value={userCredentialsData.email}/>
+            {showError && err.emailInput.map((err, index) => <p key={index}>{err}</p>)}
 
             <label htmlFor={'password'}>Password:</label>
             <input onChange={handleChangePasswords} id={'password'} name={'password'} type={'password'}
                    value={comparePassword.password}/>
+            {showError && err.passwordInput.map((err, index) => <p key={index}>{err}</p>)}
 
             <label htmlFor={'confirm-password'}>Confirm your password:</label>
             <input onChange={handleChangePasswords} id={'confirm-password'} name={'confirmPassword'} type={'password'}
                    value={comparePassword.confirmPassword}/>
-            {err.errors && err.errors.map((err, index) => <p key={index}>{err}</p>)}
 
 
-            {passwordsIsEqual ? <button disabled={false} type={'submit'}>Submit</button> :
-                <button disabled={true} type={'submit'}>Submit</button>}
+            <button  type={'submit'}>Submit</button>
         </form>
     );
 }
